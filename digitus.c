@@ -11,6 +11,13 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#ifdef _WIN32
+#include <windows.h>
+int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hInstPrev, PSTR cmdline, int cmdshow) {
+    main(0, NULL);
+}
+#endif
+
 struct timeval time1;
 uint64_t tval[16];
 
@@ -34,8 +41,8 @@ void waitusec(uint64_t d) {
     dts.tv_nsec = (d % 1000000) * 1000;
     nanosleep(&dts, NULL);
     #else
-    uint64_t t = d + usTime();
-    while (t > usTime() && !cmdint) {}
+    uint64_t t = d + usec();
+    while (t > usec()) {}
     #endif
 }
 
@@ -46,8 +53,8 @@ SDL_Event event;
 
 uint8_t tile[256][256];
 
-int32_t mapw = 4;
-int32_t maph = 4;
+int32_t mapw = 40;
+int32_t maph = 30;
 int32_t camx = 0;
 int32_t camy = 0;
 uint8_t* tilemap = NULL;
@@ -113,10 +120,12 @@ void gamelogic() {
 #define DELAYTIME 16666u
 uint64_t LOGICTIME = 500000;
 
-int main() {
+int main(int argc, char **argv) {
+    (void)argc;
+    (void)argv;
     signal(SIGINT, cleanExit);
     srand(clock());
-    if (SDL_Init(SDL_INIT_EVERYTHING)) {
+    if (SDL_Init(SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         fprintf(stderr, "SDL_Init error: %s\n", SDL_GetError());
         return EXIT_FAILURE;
     }
@@ -138,11 +147,15 @@ int main() {
             tile[t][p] = (rand() % 256);
         }
     }
-    FILE* tilefile = fopen("tools/tmpmap/tiles/001.dtf", "rb");
-    if (tilefile) {
-        fread(tile[0], 1, 256, tilefile);
-        fclose(tilefile);
-        tilemap[0] = 0;
+    char fn[4096];
+    for (int i = 0; i < 256; i++) {
+        sprintf(fn, "tools/tmpmap/tiles/%03d.dtf", i);
+        FILE* tilefile = fopen(fn, "rb");
+        if (tilefile) {
+            fread(tile[i], 1, 256, tilefile);
+            fclose(tilefile);
+            tilemap[i] = i;
+        }
     }
     render();
     SDL_RenderPresent(ren);
@@ -207,6 +220,9 @@ int main() {
                 }
             }
             SDL_RenderClear(ren);
+            for (int32_t i = 0; i < mapw * maph; i++) {
+                tilemap[i] = (rand() % 256);
+            }
             render();
             SDL_Texture* tex = SDL_CreateTextureFromSurface(ren, sur);
             SDL_RenderCopy(ren, tex, NULL, NULL);
